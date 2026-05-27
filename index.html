@@ -1,0 +1,167 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Dow3 MVP Interactive Demo</title>
+    <link rel="stylesheet" href="./dow3-demo.css" />
+  </head>
+  <body>
+    <div class="shell">
+      <aside class="sidebar">
+        <div class="brand">
+          <div class="brand-mark">D3</div>
+          <div>
+            <strong>Dow3</strong>
+            <span>MVP Demo</span>
+          </div>
+        </div>
+        <nav class="nav">
+          <button class="nav-item active" data-view="dashboard">工作台</button>
+          <button class="nav-item" data-view="assets">资产管理</button>
+          <button class="nav-item" data-view="funds">资金流转</button>
+          <button class="nav-item" data-view="finance">财务与磨损</button>
+          <button class="nav-item" data-view="disclosure">合规与披露</button>
+        </nav>
+      </aside>
+
+      <main class="main">
+        <header class="topbar">
+          <div>
+            <p class="eyebrow">Web3 Fund-to-Asset Operations</p>
+            <h1 id="pageTitle">工作台</h1>
+          </div>
+          <button class="primary" id="globalAdd">新增记录</button>
+        </header>
+
+        <section class="view active" id="dashboard">
+          <div class="metric-grid">
+            <article class="metric"><span>法币已到账</span><strong id="fiatTotal">USD 757,820</strong><small>可正式匹配</small></article>
+            <article class="metric"><span>稳定币待处理</span><strong id="stableTotal">USDT 600,000</strong><small>待到账 / 换汇中</small></article>
+            <article class="metric"><span>资产总额</span><strong id="assetTotal">USD 1,210,000</strong><small>LOC / DPL / Fast Pay</small></article>
+            <article class="metric"><span>披露缺口</span><strong>4 项</strong><small>合同与资产资料</small></article>
+          </div>
+
+          <section class="panel">
+            <div class="panel-head">
+              <h2>最近新增记录</h2>
+              <span class="tag">Live Demo</span>
+            </div>
+            <div class="activity-list" id="activityList"></div>
+          </section>
+        </section>
+
+        <section class="view" id="assets">
+          <div class="panel-head page-tools">
+            <h2>资产列表</h2>
+            <button class="primary" id="addAsset">新增资产</button>
+          </div>
+          <div class="asset-grid" id="assetGrid"></div>
+        </section>
+
+        <section class="view" id="funds">
+          <div class="panel-head page-tools">
+            <h2>资金流转流水</h2>
+            <button class="primary" id="addFund">新增资金流转</button>
+          </div>
+          <section class="panel table-panel">
+            <table>
+              <thead>
+                <tr>
+                  <th>流水号</th>
+                  <th>稳定币金额</th>
+                  <th>网络</th>
+                  <th>状态</th>
+                  <th>形成法币</th>
+                  <th>操作</th>
+                </tr>
+              </thead>
+              <tbody id="fundTable"></tbody>
+            </table>
+          </section>
+        </section>
+
+        <section class="view" id="finance">
+          <div class="metric-grid">
+            <article class="metric"><span>稳定币手续费</span><strong id="stableFeeTotal">300 USDT</strong><small>按原币种入账</small></article>
+            <article class="metric"><span>汇率磨损</span><strong id="rateLossTotal">USD 838.95</strong><small>少形成的 USD</small></article>
+            <article class="metric"><span>法币提现费</span><strong>USD 35</strong><small>法币侧成本</small></article>
+            <article class="metric"><span>折算总磨损</span><strong id="lossTotal">USD 1,173.95</strong><small>管理报表口径</small></article>
+          </div>
+
+          <section class="panel">
+            <div class="panel-head">
+              <h2>稳定币兑换计算器</h2>
+              <button class="secondary" id="saveCost">保存成本记录</button>
+            </div>
+            <div class="calc-grid">
+              <label>卖出币种<select id="calcCurrency"><option>USDT</option><option>USDC</option></select></label>
+              <label>卖出数量<input id="calcAmount" type="number" value="100000" /></label>
+              <label>平台手续费率<input id="calcFee" type="number" step="0.001" value="0.1" /></label>
+              <label>实际汇率<input id="calcRate" type="number" step="0.0001" value="0.9995" /></label>
+            </div>
+            <div class="result-grid">
+              <div><span>平台手续费</span><strong id="platformFee">100 USDT</strong></div>
+              <div><span>真实兑换数量</span><strong id="netSell">99,900 USDT</strong></div>
+              <div><span>形成 USD</span><strong id="actualUsd">USD 99,850.05</strong></div>
+              <div><span>汇率磨损</span><strong id="rateLoss">USD 49.95</strong></div>
+            </div>
+          </section>
+
+          <section class="panel table-panel">
+            <div class="panel-head">
+              <h2>成本拆账</h2>
+              <span class="tag">原币种 + 报表币种</span>
+            </div>
+            <table>
+              <thead>
+                <tr>
+                  <th>成本类型</th>
+                  <th>原币种金额</th>
+                  <th>折算金额</th>
+                  <th>来源</th>
+                </tr>
+              </thead>
+              <tbody id="costTable"></tbody>
+            </table>
+          </section>
+        </section>
+
+        <section class="view" id="disclosure">
+          <div class="doc-layout">
+            <section class="panel">
+              <div class="panel-head">
+                <h2>资方合同</h2>
+                <button class="secondary" data-doc="fund">上传文件</button>
+              </div>
+              <ul class="doc-list" id="fundDocs"></ul>
+            </section>
+            <section class="panel">
+              <div class="panel-head">
+                <h2>资产形成资料</h2>
+                <button class="secondary" data-doc="asset">上传文件</button>
+              </div>
+              <ul class="doc-list" id="assetDocs"></ul>
+            </section>
+          </div>
+        </section>
+      </main>
+    </div>
+
+    <dialog id="recordDialog">
+      <form method="dialog" class="dialog-card" id="recordForm">
+        <div class="panel-head">
+          <h2 id="dialogTitle">新增记录</h2>
+          <button class="icon" value="cancel" aria-label="关闭">×</button>
+        </div>
+        <div id="dialogFields" class="dialog-fields"></div>
+        <menu>
+          <button class="secondary" value="cancel">取消</button>
+          <button class="primary" id="submitRecord" value="default">保存</button>
+        </menu>
+      </form>
+    </dialog>
+
+    <script src="./dow3-demo.js"></script>
+  </body>
+</html>
