@@ -20,9 +20,17 @@
           <button class="nav-item active" data-view="dashboard">工作台</button>
           <button class="nav-item" data-view="assets">资产管理</button>
           <button class="nav-item" data-view="funds">资金流转</button>
+          <button class="nav-item" data-view="matching">资金撮合</button>
           <button class="nav-item" data-view="finance">财务与磨损</button>
           <button class="nav-item" data-view="disclosure">合规与披露</button>
         </nav>
+        <div class="sidebar-foot">
+          <div class="avatar">JD</div>
+          <div>
+            <strong>Jade</strong>
+            <span>Dow3 负责人</span>
+          </div>
+        </div>
       </aside>
 
       <main class="main">
@@ -35,11 +43,12 @@
         </header>
 
         <section class="view active" id="dashboard">
-          <div class="metric-grid">
-            <article class="metric"><span>法币已到账</span><strong id="fiatTotal">USD 757,820</strong><small>可正式匹配</small></article>
-            <article class="metric"><span>稳定币待处理</span><strong id="stableTotal">USDT 600,000</strong><small>待到账 / 换汇中</small></article>
-            <article class="metric"><span>资产总额</span><strong id="assetTotal">USD 1,210,000</strong><small>LOC / DPL / Fast Pay</small></article>
-            <article class="metric"><span>披露缺口</span><strong>4 项</strong><small>合同与资产资料</small></article>
+          <div class="metric-grid five">
+            <article class="metric clickable" data-jump="funds"><span>总到账金额</span><strong id="fiatTotal">USD 757,820</strong><small>法币已到账 · 看流水 →</small></article>
+            <article class="metric clickable" data-jump="matching"><span>已匹配资金</span><strong id="matchedFundTotal">USD 0</strong><small>已配给资产 · 看撮合 →</small></article>
+            <article class="metric clickable" data-jump="assets"><span>总资产</span><strong id="assetTotal">USD 1,210,000</strong><small>LOC / DPL / Fast Pay →</small></article>
+            <article class="metric clickable" data-jump="assets"><span>已匹配资产</span><strong id="matchedAssetTotal">USD 0</strong><small><span id="matchedAssetCount">0</span> 项已配齐 →</small></article>
+            <article class="metric clickable" data-jump="matching"><span>待匹配资产</span><strong id="pendingAssetTotal">USD 0</strong><small><span id="pendingAssetCount">0</span> 项待撮合 →</small></article>
           </div>
 
           <section class="panel">
@@ -77,6 +86,34 @@
                 </tr>
               </thead>
               <tbody id="fundTable"></tbody>
+            </table>
+          </section>
+        </section>
+
+        <section class="view" id="matching">
+          <div class="metric-grid">
+            <article class="metric"><span>可用法币</span><strong id="matchAvailable">-</strong><small>已到账未配</small></article>
+            <article class="metric"><span>待配资产缺口</span><strong id="matchGap">-</strong><small>本金未覆盖</small></article>
+            <article class="metric"><span>撮合笔数</span><strong id="matchCount">-</strong><small>资金 ↔ 资产</small></article>
+            <article class="metric"><span>资产覆盖率</span><strong id="matchCoverage">-</strong><small>已配 / 总本金</small></article>
+          </div>
+          <div class="panel-head page-tools">
+            <h2>撮合记录</h2>
+            <button class="primary" id="addMatch">新建撮合</button>
+          </div>
+          <section class="panel table-panel">
+            <table>
+              <thead>
+                <tr>
+                  <th>撮合号</th>
+                  <th>资产</th>
+                  <th>资金流水</th>
+                  <th>配资金额</th>
+                  <th>时间</th>
+                  <th>操作</th>
+                </tr>
+              </thead>
+              <tbody id="matchTable"></tbody>
             </table>
           </section>
         </section>
@@ -160,6 +197,17 @@
           <button class="primary" id="submitRecord" value="default">保存</button>
         </menu>
       </form>
+    </dialog>
+
+    <dialog id="assetDialog">
+      <div class="dialog-card">
+        <div class="panel-head">
+          <h2 id="assetDialogTitle">资产详情</h2>
+          <button class="icon" id="assetDialogClose" aria-label="关闭">×</button>
+        </div>
+        <div id="assetDialogBody" class="asset-detail"></div>
+        <menu id="assetDialogActions"></menu>
+      </div>
     </dialog>
 
     <script src="./dow3-demo.js"></script>
