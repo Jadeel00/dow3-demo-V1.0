@@ -84,6 +84,21 @@ function checkEligibility(funder, asset, amount) {
 }
 const isEligible = (funder, asset, amount) => checkEligibility(funder, asset, amount).every((c) => c.pass);
 
+// ---- 匹配建议：对一个待配资产，推荐最优资金方（可行额度感知，支持部分配资）----
+// 每家资金方按 feasible = min(缺口, 单笔上限, 可用额度) 评估可投金额；
+// 满足 类型/收益/期限 且 feasible ≥ 单笔下限 即入选。评分按「利差」降序，同利差比可投金额。
+function recommendFunders(asset, target) {
+  const assetYield = parseFloat(asset.yield);
+  return state.funders
+    .map((fu) => {
+      const feasible = Math.min(target, fu.maxTicket, funderAvailable(fu));
+      const ok = fu.eligible.includes(asset.category) && assetYield >= fu.minYield && fu.tenure.includes(asset.tenure) && feasible >= fu.minTicket && feasible > 0;
+      return { funder: fu, ok, spread: Math.round((assetYield - fu.minYield) * 100) / 100, feasible, available: funderAvailable(fu) };
+    })
+    .filter((o) => o.ok)
+    .sort((a, b) => b.spread - a.spread || b.feasible - a.feasible);
+}
+
 // 撮合满额的资产标记为「已匹配」，否则回落到「待匹配」(资料相关状态不覆盖)
 function syncAssetStatus(asset) {
   const fundedStatuses = ["待匹配", "已匹配"];
@@ -421,11 +436,16 @@ function openDialog(type) {
       const funderOpts = buildFunderOptions(asset, amount);
       const fundOpts = buildFundOptions(asset, amount);
       const eligibleCount = funderOpts.filter((o) => o.allPass).length;
+      // 推荐：在「按当前金额通过全部准入」的资金方里，挑利差最高的
+      const ay = parseFloat(asset.yield);
+      const passing = funderOpts.filter((o) => o.allPass).map((o) => ({ fu: o.fu, spread: Math.round((ay - o.fu.minYield) * 100) / 100 })).sort((a, b) => b.spread - a.spread);
+      const bestId = passing[0] ? passing[0].fu.id : null;
+      const bestSpread = passing[0] ? passing[0].spread : 0;
 
       const funderHtml = funderOpts.map(({ fu, allPass, failReasons }) =>
         `<div class="funder-check ${allPass ? "pass" : "fail"}">
-          <span>${allPass ? "✅" : "❌"} ${fu.name}</span>
-          <small>${allPass ? `${fu.eligible.join("、")} · ≥${fu.minYield}% · ${fu.tenure.join("、")}` : `不符合：${failReasons}`}</small>
+          <span>${allPass ? "✅" : "❌"} ${fu.name}${allPass && fu.id === bestId ? ' <em class="rec-badge">⭐ 推荐</em>' : ""}</span>
+          <small>${allPass ? `${fu.eligible.join("、")} · ≥${fu.minYield}% · ${fu.tenure.join("、")}${fu.id === bestId ? ` · 利差 ${bestSpread}%` : ""}` : `不符合：${failReasons}`}</small>
         </div>`
       ).join("");
 
@@ -434,7 +454,9 @@ function openDialog(type) {
             const fu = state.funders.find((fu) => fu.id === f.funderId);
             return `<option value="${f.id}">${f.id}${fu ? ` · ${fu.name}` : ""} · 可用 ${money(fundAvailable(f))}</option>`;
           }).join("")}</select></label>`
-        : `<p class="match-warn">⚠️ 当前无资金方通过全部准入规则，请调整金额或先补充资料。</p>`;
+        : `<p class="match-warn">⚠️ ${eligibleCount > 0
+            ? "通过准入的资金方暂无「已到账法币」可用：其资金流水尚未形成法币，请到「资金管理 → 资金流转」把对应流水推进到「法币已到账」后再来匹配。"
+            : "当前无资金方通过全部准入规则，请调整金额、调整资产期限或先补充资料。"}</p>`;
 
       fields.innerHTML = `
         <label>待配资产<select name="assetId">${openAssets.map((a) =>
@@ -501,13 +523,20 @@ function openAssetDetail(assetId) {
   if (lacking) {
     html += `<div class="detail-note">资料不完整，需申请人补齐后才能进入正式撮合。${asset.reminded ? `<br/><em>已于 ${asset.reminded} 发送提醒 / 任务</em>` : ""}</div>`;
   }
-  // 符合准入的资金方
-  const eligible = state.funders.filter((fu) => isEligible(fu, asset, asset.amount));
-  if (eligible.length) {
-    html += `<div class="detail-section-label">符合准入的资金方（${eligible.length} 家）</div>`;
-    html += eligible.map((fu) => `<div><span>${fu.name}</span><strong>${fu.type} · ≥${fu.minYield}% · ${fu.tenure.join("、")}</strong></div>`).join("");
+  // 匹配建议：推荐最优资金方
+  const matchAmount = remaining || asset.amount;
+  const recs = recommendFunders(asset, matchAmount);
+  if (recs.length) {
+    const best = recs[0];
+    const partial = best.feasible < matchAmount;
+    html += `<div class="detail-note" style="background:#e6f4ec;color:var(--green)">💡 推荐资金方：<strong>${best.funder.name}</strong> —— 资产收益 ${asset.yield} 对其要求 ≥${best.funder.minYield}%，利差最高 <strong>${best.spread}%</strong>，可配 <strong>${money(best.feasible)}</strong>${partial ? `（缺口 ${money(matchAmount)}，需分笔/多家补足）` : ""}。</div>`;
+    html += `<div class="detail-section-label">匹配建议（按利差排序，${recs.length} 家可配）</div>`;
+    html += recs.map((r, i) => `<div class="rec-row${i === 0 ? " rec-top" : ""}">
+      <span>${i === 0 ? "⭐ " : `${i + 1}. `}${r.funder.name}</span>
+      <strong>利差 ${r.spread}% · 可配 ${money(r.feasible)}</strong>
+    </div>`).join("");
   } else {
-    html += `<div class="detail-note" style="background:#f0f4ff;color:#2c5f8f">暂无资金方同时满足全部准入规则（类型 / 收益 / 期限 / 金额）。</div>`;
+    html += `<div class="detail-note" style="background:#f0f4ff;color:#2c5f8f">暂无资金方同时满足全部准入规则（类型 / 收益 / 期限 / 金额 / 额度），无法给出匹配建议。</div>`;
   }
   document.getElementById("assetDialogBody").innerHTML = html;
 

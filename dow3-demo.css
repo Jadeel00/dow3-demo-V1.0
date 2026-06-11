@@ -259,6 +259,15 @@ menu { display: flex; justify-content: flex-end; gap: 10px; padding: 0; margin: 
 .funder-check.fail small { color: var(--red); }
 .match-warn { color: var(--orange); font-size: 13px; background: #fcefde; padding: 12px; border-radius: var(--radius-sm); margin: 0; }
 
+/* ---------- Match recommendation ---------- */
+.rec-row { display: flex; justify-content: space-between; gap: 12px; padding: 10px 12px; border-radius: 8px; border: 1px solid var(--line-soft); margin-top: 6px; }
+.rec-row span { font-weight: 700; font-size: 14px; }
+.rec-row strong { font-size: 13px; color: var(--muted); font-weight: 600; }
+.rec-row.rec-top { background: #edf7f2; border-color: #cce5d6; }
+.rec-row.rec-top span { color: var(--green); }
+.rec-row.rec-top strong { color: var(--green); }
+.rec-badge { font-style: normal; font-size: 11px; font-weight: 800; color: var(--green); background: #d8f0e2; border-radius: 999px; padding: 2px 8px; margin-left: 6px; }
+
 /* ---------- Detail dialog section label ---------- */
 .detail-section-label { font-size: 11px; font-weight: 800; letter-spacing: .8px; text-transform: uppercase; color: var(--faint); padding: 14px 0 4px; border-top: 1px solid var(--line); margin-top: 4px; }
 .asset-detail > .detail-section-label { display: block; border: none; padding-bottom: 2px; }
