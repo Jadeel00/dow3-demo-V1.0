@@ -200,6 +200,11 @@ dialog { border: 0; border-radius: 16px; padding: 0; box-shadow: var(--shadow-lg
 dialog::backdrop { background: rgba(14, 22, 17, .5); backdrop-filter: blur(3px); }
 .dialog-card { padding: 22px; }
 .dialog-fields { display: grid; gap: 14px; margin-top: 18px; }
+.field-group { display: grid; gap: 8px; }
+.field-label { font-size: 13px; color: var(--muted); font-weight: 600; }
+.check-row { display: flex; flex-wrap: wrap; gap: 8px; }
+.check-inline { display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--line); border-radius: 999px; padding: 7px 13px; font-size: 13px; font-weight: 600; color: var(--ink); cursor: pointer; }
+.check-inline input { width: auto; margin: 0; accent-color: var(--green); }
 menu { display: flex; justify-content: flex-end; gap: 10px; padding: 0; margin: 22px 0 0; }
 
 /* ---------- Tabs ---------- */

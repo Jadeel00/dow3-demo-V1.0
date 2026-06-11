@@ -356,7 +356,37 @@ function openDialog(type) {
   const dialog = document.getElementById("recordDialog");
   const fields = document.getElementById("dialogFields");
   document.getElementById("recordForm").dataset.type = type;
-  document.getElementById("dialogTitle").textContent = type === "asset" ? "新增资产" : type === "doc" ? "上传资料" : type === "match" ? "新建撮合" : "新增资金流转";
+  document.getElementById("dialogTitle").textContent = type === "asset" ? "新增资产" : type === "doc" ? "上传资料" : type === "match" ? "新建匹配" : type === "funder" ? "新增资金方" : "新增资金流转";
+  if (type === "funder") {
+    document.getElementById("submitRecord").disabled = false;
+    fields.innerHTML = `
+      <label>资金方名称<input name="name" value="新资金方" /></label>
+      <label>类型<input name="type" value="机构 LP" /></label>
+      <label>联系人<input name="contact" value="对接人" /></label>
+      <div class="field-group">
+        <span class="field-label">可配资产类型</span>
+        <div class="check-row">
+          <label class="check-inline"><input type="checkbox" name="eligible" value="LOC" checked /> LOC</label>
+          <label class="check-inline"><input type="checkbox" name="eligible" value="DPL" checked /> DPL</label>
+          <label class="check-inline"><input type="checkbox" name="eligible" value="Fast Pay" /> Fast Pay</label>
+        </div>
+      </div>
+      <label>最低收益要求 (%)<input name="minYield" type="number" step="0.1" value="12" /></label>
+      <label>单笔最小金额<input name="minTicket" type="number" value="50000" /></label>
+      <label>单笔最大金额<input name="maxTicket" type="number" value="500000" /></label>
+      <div class="field-group">
+        <span class="field-label">资金期限偏好</span>
+        <div class="check-row">
+          <label class="check-inline"><input type="checkbox" name="tenure" value="随时可赎回" /> 随时可赎回</label>
+          <label class="check-inline"><input type="checkbox" name="tenure" value="3个月" checked /> 3个月</label>
+          <label class="check-inline"><input type="checkbox" name="tenure" value="6个月" checked /> 6个月</label>
+        </div>
+      </div>
+      <label>承诺额度<input name="committed" type="number" value="500000" /></label>`;
+    document.getElementById("recordForm").dataset.type = "funder";
+    dialog.showModal();
+    return;
+  }
   if (type === "match") {
     const openAssets = state.assets.filter((asset) => assetRemaining(asset) > 0);
     const openFunds = state.funds.filter((fund) => fundAvailable(fund) > 0);
@@ -606,7 +636,7 @@ document.getElementById("funderGrid").addEventListener("click", (e) => {
   const card = e.target.closest(".funder-card");
   if (card) openFunderDetail(card.dataset.id);
 });
-document.getElementById("addFunder").addEventListener("click", () => addActivity("新增资金方（Demo 中暂不支持表单）"));
+document.getElementById("addFunder").addEventListener("click", () => openDialog("funder"));
 document.getElementById("globalAdd").addEventListener("click", () => openDialog(state.currentView === "assets" ? "asset" : state.currentView === "matching" ? "match" : "fund"));
 document.getElementById("addAsset").addEventListener("click", () => openDialog("asset"));
 document.getElementById("addFund").addEventListener("click", () => openDialog("fund"));
@@ -625,7 +655,24 @@ document.getElementById("recordForm").addEventListener("submit", (event) => {
   event.preventDefault();
   const form = event.currentTarget;
   const data = Object.fromEntries(new FormData(form).entries());
-  if (form.dataset.type === "asset") {
+  if (form.dataset.type === "funder") {
+    const fd = new FormData(form);
+    const eligible = fd.getAll("eligible");
+    const tenure = fd.getAll("tenure");
+    const id = `FU-${String(++state.funderSeq).padStart(3, "0")}`;
+    state.funders.push({
+      id, name: data.name, type: data.type, contact: data.contact,
+      eligible: eligible.length ? eligible : ["LOC"],
+      minYield: Number(data.minYield) || 0,
+      minTicket: Number(data.minTicket) || 0,
+      maxTicket: Number(data.maxTicket) || 0,
+      tenure: tenure.length ? tenure : ["6个月"],
+      committed: Number(data.committed) || 0,
+      status: "活跃", reminded: "", note: "",
+    });
+    renderFunders();
+    addActivity(`新增资金方 ${data.name}（可配 ${(eligible.length ? eligible : ["LOC"]).join("、")}）`);
+  } else if (form.dataset.type === "asset") {
     const id = `AS-${String(++state.assetSeq).padStart(3, "0")}`;
     state.assets.unshift({ id, name: data.name, category: data.category, amount: Number(data.amount), yield: data.yield, status: "待匹配", docs: "待上传", applicant: "待指派", reminded: "" });
     renderAssets();
