@@ -17,12 +17,14 @@
           </div>
         </div>
         <nav class="nav">
+          <span class="nav-label">核心业务</span>
           <button class="nav-item active" data-view="dashboard">工作台</button>
           <button class="nav-item" data-view="assets">资产管理</button>
-          <button class="nav-item" data-view="funds">资金流转</button>
-          <button class="nav-item" data-view="matching">资金撮合</button>
-          <button class="nav-item" data-view="finance">财务与磨损</button>
-          <button class="nav-item" data-view="disclosure">合规与披露</button>
+          <button class="nav-item" data-view="funding">资金管理</button>
+          <button class="nav-item nav-item-match" data-view="matching">资金-资产匹配</button>
+          <span class="nav-label nav-label-ops">运营后台</span>
+          <button class="nav-item nav-item-ops" data-view="finance">财务与磨损</button>
+          <button class="nav-item nav-item-ops" data-view="disclosure">合规与披露</button>
         </nav>
         <div class="sidebar-foot">
           <div class="avatar">JD</div>
@@ -42,24 +44,25 @@
           <button class="primary" id="globalAdd">新增记录</button>
         </header>
 
+        <!-- 工作台 -->
         <section class="view active" id="dashboard">
           <div class="metric-grid five">
-            <article class="metric clickable" data-jump="funds"><span>总到账金额</span><strong id="fiatTotal">USD 757,820</strong><small>法币已到账 · 看流水 →</small></article>
-            <article class="metric clickable" data-jump="matching"><span>已匹配资金</span><strong id="matchedFundTotal">USD 0</strong><small>已配给资产 · 看撮合 →</small></article>
+            <article class="metric clickable" data-jump="funding"><span>总到账金额</span><strong id="fiatTotal">USD 757,820</strong><small>法币已到账 · 看流水 →</small></article>
+            <article class="metric clickable" data-jump="matching"><span>已匹配资金</span><strong id="matchedFundTotal">USD 0</strong><small>已配给资产 · 看匹配 →</small></article>
             <article class="metric clickable" data-jump="assets"><span>总资产</span><strong id="assetTotal">USD 1,210,000</strong><small>LOC / DPL / Fast Pay →</small></article>
             <article class="metric clickable" data-jump="assets"><span>已匹配资产</span><strong id="matchedAssetTotal">USD 0</strong><small><span id="matchedAssetCount">0</span> 项已配齐 →</small></article>
             <article class="metric clickable" data-jump="matching"><span>待匹配资产</span><strong id="pendingAssetTotal">USD 0</strong><small><span id="pendingAssetCount">0</span> 项待撮合 →</small></article>
           </div>
-
           <section class="panel">
             <div class="panel-head">
-              <h2>最近新增记录</h2>
+              <h2>最近操作记录</h2>
               <span class="tag">Live Demo</span>
             </div>
             <div class="activity-list" id="activityList"></div>
           </section>
         </section>
 
+        <!-- 资产管理 -->
         <section class="view" id="assets">
           <div class="panel-head page-tools">
             <h2>资产列表</h2>
@@ -68,46 +71,71 @@
           <div class="asset-grid" id="assetGrid"></div>
         </section>
 
-        <section class="view" id="funds">
-          <div class="panel-head page-tools">
-            <h2>资金流转流水</h2>
-            <button class="primary" id="addFund">新增资金流转</button>
+        <!-- 资金管理（Tab：资金方 / 资金流转） -->
+        <section class="view" id="funding">
+          <div class="tab-bar">
+            <button class="tab-btn active" data-tab="funders">资金方</button>
+            <button class="tab-btn" data-tab="flows">资金流转</button>
           </div>
-          <section class="panel table-panel">
-            <table>
-              <thead>
-                <tr>
-                  <th>流水号</th>
-                  <th>稳定币金额</th>
-                  <th>网络</th>
-                  <th>状态</th>
-                  <th>形成法币</th>
-                  <th>操作</th>
-                </tr>
-              </thead>
-              <tbody id="fundTable"></tbody>
-            </table>
-          </section>
+
+          <div class="tab-pane active" id="tab-funders">
+            <div class="metric-grid">
+              <article class="metric"><span>资金方总数</span><strong id="funderCount">-</strong><small>活跃资金方</small></article>
+              <article class="metric"><span>总承诺额度</span><strong id="funderCommitted">-</strong><small>各资金方之和</small></article>
+              <article class="metric"><span>已部署</span><strong id="funderDeployed">-</strong><small>已撮合配出</small></article>
+              <article class="metric"><span>可用额度</span><strong id="funderFree">-</strong><small>待配资金</small></article>
+            </div>
+            <div class="panel-head page-tools">
+              <h2>资金方列表</h2>
+              <button class="primary" id="addFunder">新增资金方</button>
+            </div>
+            <div class="funder-grid" id="funderGrid"></div>
+          </div>
+
+          <div class="tab-pane" id="tab-flows">
+            <div class="panel-head page-tools">
+              <h2>资金流转流水</h2>
+              <button class="primary" id="addFund">新增资金流转</button>
+            </div>
+            <section class="panel table-panel">
+              <table>
+                <thead>
+                  <tr>
+                    <th>流水号</th>
+                    <th>资金方</th>
+                    <th>稳定币金额</th>
+                    <th>网络</th>
+                    <th>状态</th>
+                    <th>形成法币</th>
+                    <th>操作</th>
+                  </tr>
+                </thead>
+                <tbody id="fundTable"></tbody>
+              </table>
+            </section>
+          </div>
         </section>
 
+        <!-- 资金-资产匹配 -->
         <section class="view" id="matching">
           <div class="metric-grid">
             <article class="metric"><span>可用法币</span><strong id="matchAvailable">-</strong><small>已到账未配</small></article>
             <article class="metric"><span>待配资产缺口</span><strong id="matchGap">-</strong><small>本金未覆盖</small></article>
-            <article class="metric"><span>撮合笔数</span><strong id="matchCount">-</strong><small>资金 ↔ 资产</small></article>
+            <article class="metric"><span>匹配笔数</span><strong id="matchCount">-</strong><small>资金 ↔ 资产</small></article>
             <article class="metric"><span>资产覆盖率</span><strong id="matchCoverage">-</strong><small>已配 / 总本金</small></article>
           </div>
           <div class="panel-head page-tools">
-            <h2>撮合记录</h2>
-            <button class="primary" id="addMatch">新建撮合</button>
+            <h2>匹配记录</h2>
+            <button class="primary" id="addMatch">新建匹配</button>
           </div>
           <section class="panel table-panel">
             <table>
               <thead>
                 <tr>
-                  <th>撮合号</th>
+                  <th>匹配号</th>
                   <th>资产</th>
                   <th>资金流水</th>
+                  <th>资金方</th>
                   <th>配资金额</th>
                   <th>时间</th>
                   <th>操作</th>
@@ -118,6 +146,7 @@
           </section>
         </section>
 
+        <!-- 财务与磨损 -->
         <section class="view" id="finance">
           <div class="metric-grid">
             <article class="metric"><span>稳定币手续费</span><strong id="stableFeeTotal">300 USDT</strong><small>按原币种入账</small></article>
@@ -125,7 +154,6 @@
             <article class="metric"><span>法币提现费</span><strong>USD 35</strong><small>法币侧成本</small></article>
             <article class="metric"><span>折算总磨损</span><strong id="lossTotal">USD 1,173.95</strong><small>管理报表口径</small></article>
           </div>
-
           <section class="panel">
             <div class="panel-head">
               <h2>稳定币兑换计算器</h2>
@@ -144,7 +172,6 @@
               <div><span>汇率磨损</span><strong id="rateLoss">USD 49.95</strong></div>
             </div>
           </section>
-
           <section class="panel table-panel">
             <div class="panel-head">
               <h2>成本拆账</h2>
@@ -164,7 +191,36 @@
           </section>
         </section>
 
+        <!-- 合规与披露（总看板） -->
         <section class="view" id="disclosure">
+          <div class="metric-grid">
+            <article class="metric"><span>合同覆盖率</span><strong id="contractCoverage">-</strong><small>资方合同完整度</small></article>
+            <article class="metric"><span>资料完整度</span><strong id="docCompleteness">-</strong><small>资产形成资料</small></article>
+            <article class="metric"><span>待处理缺口</span><strong id="docGapCount">-</strong><small>缺失 / 待签署</small></article>
+            <article class="metric"><span>已催办</span><strong id="remindedCount">-</strong><small>已发起催办项</small></article>
+          </div>
+          <section class="panel compliance-actions-panel">
+            <div class="panel-head">
+              <h2>合规操作</h2>
+              <span class="tag">合同管理系统对接中</span>
+            </div>
+            <div class="compliance-actions">
+              <div class="compliance-action-card">
+                <div>
+                  <strong>一键提取合规摘要</strong>
+                  <p>提取当前合同状态、资料完整度、催办记录，生成可对外提交的合规报告。</p>
+                </div>
+                <button class="primary" id="exportCompliance">提取摘要</button>
+              </div>
+              <div class="compliance-action-card">
+                <div>
+                  <strong>跳转合同管理系统</strong>
+                  <p>查看完整合同台账、版本历史、电子签章状态（由另一套系统管理）。</p>
+                </div>
+                <button class="secondary" id="jumpToContracts">前往查看 →</button>
+              </div>
+            </div>
+          </section>
           <div class="doc-layout">
             <section class="panel">
               <div class="panel-head">
@@ -202,7 +258,7 @@
     <dialog id="assetDialog">
       <div class="dialog-card">
         <div class="panel-head">
-          <h2 id="assetDialogTitle">资产详情</h2>
+          <h2 id="assetDialogTitle">详情</h2>
           <button class="icon" id="assetDialogClose" aria-label="关闭">×</button>
         </div>
         <div id="assetDialogBody" class="asset-detail"></div>
