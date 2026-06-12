@@ -55,6 +55,14 @@
           </div>
           <section class="panel">
             <div class="panel-head">
+              <h2>重点事项</h2>
+              <span class="todo-summary" id="todoSummary"></span>
+            </div>
+            <div class="todo-list" id="todoList"></div>
+          </section>
+
+          <section class="panel">
+            <div class="panel-head">
               <h2>最近操作记录</h2>
               <span class="tag">Live Demo</span>
             </div>
@@ -97,6 +105,7 @@
               <h2>资金流转流水</h2>
               <button class="primary" id="addFund">新增资金流转</button>
             </div>
+            <div class="flow-filter" id="flowFilter"></div>
             <section class="panel table-panel">
               <table>
                 <thead>
@@ -193,6 +202,7 @@
 
         <!-- 合规与披露（总看板） -->
         <section class="view" id="disclosure">
+          <div id="materialContextBanner"></div>
           <div class="metric-grid">
             <article class="metric"><span>合同覆盖率</span><strong id="contractCoverage">-</strong><small>资方合同完整度</small></article>
             <article class="metric"><span>资料完整度</span><strong id="docCompleteness">-</strong><small>资产形成资料</small></article>

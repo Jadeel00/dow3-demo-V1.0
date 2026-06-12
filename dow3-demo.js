@@ -5,26 +5,50 @@ const state = {
       id: "FU-001", name: "Lista Protocol", type: "DeFi 借贷协议", contact: "Lista BD",
       eligible: ["LOC", "DPL", "Fast Pay"], minYield: 11.0, minTicket: 50000, maxTicket: 500000,
       tenure: ["随时可赎回", "3个月", "6个月"], committed: 600000, status: "活跃", reminded: "",
+      startDate: "2026-06-13", dueDate: "2026-12-13",
       note: "BNB Chain 头部借贷协议，接受多类资产，流动性优先，期限灵活。",
     },
     {
       id: "FU-002", name: "Volo Protocol", type: "流动性质押协议", contact: "Volo Partnerships",
       eligible: ["DPL"], minYield: 13.0, minTicket: 100000, maxTicket: 400000,
       tenure: ["3个月", "6个月"], committed: 500000, status: "活跃", reminded: "",
+      startDate: "2026-06-15", dueDate: "2026-09-15",
       note: "质押池资金偏好中长期 DPL 资产，收益要求较高，不接受 LOC 和 Fast Pay。",
     },
     {
       id: "FU-003", name: "蚂蚁数科", type: "持牌数字金融机构", contact: "蚂蚁数科合作团队",
       eligible: ["Fast Pay"], minYield: 10.0, minTicket: 50000, maxTicket: 300000,
       tenure: ["随时可赎回", "3个月"], committed: 800000, status: "活跃", reminded: "",
+      startDate: "2026-06-12", dueDate: "2026-09-12",
       note: "持牌机构，专注 Fast Pay 类资产，合规资料要求严格，额度充足。",
     },
   ],
   funderSeq: 3,
   assets: [
-    { id: "AS-001", name: "LOC-Alpha-001", category: "LOC", amount: 620000, yield: "13.2%", tenure: "6个月", status: "待匹配", docs: "完整", applicant: "张维（Alpha 资产方）", reminded: "" },
-    { id: "AS-002", name: "DPL-Orbit-018", category: "DPL", amount: 410000, yield: "14.8%", tenure: "3个月", status: "资料缺失", docs: "缺商业登记证、物流账单", applicant: "王琳（Orbit 资产方）", reminded: "" },
-    { id: "AS-003", name: "FP-Mercury-009", category: "Fast Pay", amount: 180000, yield: "10.6%", tenure: "随时可赎回", status: "待复核", docs: "待运营复核", applicant: "陈默（Mercury 资产方）", reminded: "" },
+    {
+      id: "AS-001", name: "LOC-Alpha-001", category: "LOC", amount: 620000, yield: "13.2%", tenure: "6个月", deadline: "2026-06-25", status: "待匹配", docs: "完整", applicant: "张维（Alpha 资产方）", reminded: "",
+      qualification: {
+        controller: { status: "通过", nationality: "香港", identity: "香港公司董事 / 实控人", credit: "征信正常、非失信、未命中黑名单" },
+        company: { status: "通过", age: "香港主体 14 个月", type: "跨境电商（合规品类）", ltmGmv: "LTM GMV 680 万 RMB", entity: "境外主体（香港）" },
+        shop: { status: "通过", returnRate: "退货率 18%", repayRate: "回款率 72%（月回款 ≥ 贷款 66%）", closeRate: "关店率 9%", platform: "Amazon、Walmart（双锁）" },
+      },
+    },
+    {
+      id: "AS-002", name: "DPL-Orbit-018", category: "DPL", amount: 410000, yield: "14.8%", tenure: "3个月", deadline: "2026-06-16", status: "资料缺失", docs: "缺商业登记证、物流账单", applicant: "王琳（Orbit 资产方）", reminded: "",
+      qualification: {
+        controller: { status: "通过", nationality: "大陆", identity: "香港公司董事 + 连带责任保证", credit: "征信正常" },
+        company: { status: "待补", age: "香港主体 8 个月", type: "物流（合规）", ltmGmv: "LTM GMV 待补（缺商业登记证）", entity: "境外主体（香港）" },
+        shop: { status: "通过", returnRate: "退货率 22%", repayRate: "回款率 65%", closeRate: "关店率 15%", platform: "Shopee（双锁）" },
+      },
+    },
+    {
+      id: "AS-003", name: "FP-Mercury-009", category: "Fast Pay", amount: 180000, yield: "10.6%", tenure: "随时可赎回", deadline: "2026-06-30", status: "待复核", docs: "待运营复核", applicant: "陈默（Mercury 资产方）", reminded: "",
+      qualification: {
+        controller: { status: "通过", nationality: "大陆", identity: "香港公司董事 / 实控人", credit: "征信正常" },
+        company: { status: "通过", age: "大陆主体 3 年", type: "快消（合规）", ltmGmv: "LTM GMV 540 万 RMB", entity: "境外主体（香港）" },
+        shop: { status: "通过", returnRate: "退货率 25%", repayRate: "回款率 68%", closeRate: "关店率 20%", platform: "TikTok Shop（单锁）+ Amazon（双锁）" },
+      },
+    },
   ],
   funds: [
     { id: "FR-2026-0527-01", funderId: "FU-003", coin: "USDT", amount: 180000, network: "Tron", status: "稳定币已到账", fiat: 0 },
@@ -66,6 +90,50 @@ const fundAvailable = (fund) => Math.max(0, (fund.fiat || 0) - fundAllocated(fun
 const assetMatched = (assetId) => state.matches.filter((m) => m.assetId === assetId).reduce((sum, m) => sum + m.amount, 0);
 const assetRemaining = (asset) => Math.max(0, asset.amount - assetMatched(asset.id));
 
+// ---- 资产方资质（第三道门）----
+// 三维度（实控人 / 企业 / 店铺）同时「通过」才算已过审；任一「不通过」→未过审；否则待审
+function qualOverall(asset) {
+  const q = asset.qualification;
+  if (!q) return "待审";
+  const s = [q.controller.status, q.company.status, q.shop.status];
+  if (s.includes("不通过")) return "未过审";
+  if (s.includes("待补")) return "待审";
+  return "已过审";
+}
+const qualified = (asset) => qualOverall(asset) === "已过审";
+
+// ---- 需求截止日 / 倒计时（第四道：时间门）----
+function daysLeft(asset) {
+  if (!asset.deadline) return 999;
+  return Math.ceil((new Date(asset.deadline + "T23:59:59") - Date.now()) / 86400000);
+}
+// 紧迫度：expired 已过期 / urgent ≤3天 / soon ≤7天 / ok 充足
+function urgency(asset) {
+  const d = daysLeft(asset);
+  if (d < 0) return "expired";
+  if (d <= 3) return "urgent";
+  if (d <= 7) return "soon";
+  return "ok";
+}
+// 可进入撮合：资质已过审 且 未过期
+const eligibleForMatch = (asset) => qualified(asset) && daysLeft(asset) >= 0;
+
+// ---- 时间窗口（第五道门）----
+// 资产期限折算天数：随时可赎回=0（灵活），3个月=90，6个月=180
+function tenureDays(asset) {
+  if (/随时/.test(asset.tenure)) return 0;
+  const m = parseInt(asset.tenure, 10);
+  return Number.isNaN(m) ? 0 : m * 30;
+}
+// 资金窗口是否覆盖资产：起息日 ≤ 资产最晚需求日 且 窗口时长 ≥ 资产期限。未设窗口则不限制。
+function timeWindowOk(funder, asset) {
+  if (!funder.startDate || !funder.dueDate) return true;
+  const sd = new Date(funder.startDate), dd = new Date(funder.dueDate);
+  const winDays = (dd - sd) / 86400000;
+  const startInTime = !asset.deadline || sd <= new Date(asset.deadline + "T23:59:59");
+  return startInTime && winDays >= tenureDays(asset);
+}
+
 // ---- 资金方派生量 ----
 const funderDeployed = (funderId) => state.matches.filter((m) => m.funderId === funderId).reduce((sum, m) => sum + m.amount, 0);
 const funderAvailable = (funder) => Math.max(0, funder.committed - funderDeployed(funder.id));
@@ -81,6 +149,7 @@ function checkEligibility(funder, asset, amount) {
     { rule: "单笔额度", pass: amount >= funder.minTicket && amount <= funder.maxTicket, detail: `${money(funder.minTicket)}–${money(funder.maxTicket)}，请求 ${money(amount)}` },
     { rule: "资金期限", pass: funder.tenure.includes(asset.tenure), detail: `接受 ${funder.tenure.join("、")}，资产 ${asset.tenure}` },
     { rule: "可用额度", pass: funderAvailable(funder) >= amount, detail: `可用 ${money(funderAvailable(funder))}，请求 ${money(amount)}` },
+    { rule: "资金窗口", pass: timeWindowOk(funder, asset), detail: funder.startDate && funder.dueDate ? `${funder.startDate}~${funder.dueDate} vs 资产需 ${tenureDays(asset)} 天、最晚 ${asset.deadline || "-"}` : "未设窗口（不限制）" },
   ];
 }
 const isEligible = (funder, asset, amount) => checkEligibility(funder, asset, amount).every((c) => c.pass);
@@ -93,7 +162,7 @@ function recommendFunders(asset, target) {
   return state.funders
     .map((fu) => {
       const feasible = Math.min(target, fu.maxTicket, funderAvailable(fu));
-      const ok = fu.status === "活跃" && fu.eligible.includes(asset.category) && assetYield >= fu.minYield && fu.tenure.includes(asset.tenure) && feasible >= fu.minTicket && feasible > 0;
+      const ok = fu.status === "活跃" && fu.eligible.includes(asset.category) && assetYield >= fu.minYield && fu.tenure.includes(asset.tenure) && timeWindowOk(fu, asset) && feasible >= fu.minTicket && feasible > 0;
       return { funder: fu, ok, spread: Math.round((assetYield - fu.minYield) * 100) / 100, feasible, available: funderAvailable(fu) };
     })
     .filter((o) => o.ok)
@@ -177,6 +246,7 @@ function renderDashboard() {
   document.getElementById("matchedAssetCount").textContent = String(matchedAssets.length);
   document.getElementById("pendingAssetTotal").textContent = money(pendingAssetTotal);
   document.getElementById("pendingAssetCount").textContent = String(pendingAssets.length);
+  renderTodos();
   document.getElementById("activityList").replaceChildren(
     ...state.activities.slice(0, 6).map((item) => {
       const row = document.createElement("div");
@@ -187,6 +257,54 @@ function renderDashboard() {
   );
 }
 
+let lastTodos = [];
+let todoFilter = "all";
+function renderTodos() {
+  const items = [];
+  for (const a of state.assets) {
+    const rem = assetRemaining(a);
+    if (rem <= 0) continue;
+    const u = urgency(a);
+    if (u === "expired") items.push({ sev: "urgent", cat: "资产", text: `资产 ${a.name} 已过期（最晚 ${a.deadline}），待配 ${money(rem)} 失效`, view: "assets", assetId: a.id });
+    else if (u === "urgent") items.push({ sev: "urgent", cat: "资产", text: `资产 ${a.name} 仅剩 ${daysLeft(a)} 天到期，待配 ${money(rem)}`, view: "assets", assetId: a.id });
+    else if (u === "soon") items.push({ sev: "important", cat: "资产", text: `资产 ${a.name} 剩 ${daysLeft(a)} 天到期，待配 ${money(rem)}`, view: "assets", assetId: a.id });
+    if (qualOverall(a) !== "已过审") items.push({ sev: "important", cat: "合规", text: `资产 ${a.name} 资质「${qualOverall(a)}」，需完成审核`, view: "assets", assetId: a.id });
+    if (/缺|待上传/.test(a.docs)) items.push({ sev: "important", cat: "合规", text: `资产 ${a.name} 资料：${a.docs}，需催办`, view: "assets", assetId: a.id });
+    if (eligibleForMatch(a)) {
+      const recs = recommendFunders(a, rem).filter((r) => funderLiquidity(r.funder.id) > 0);
+      if (recs.length) items.push({ sev: "tip", cat: "匹配", text: `${a.name} 现可撮合，推荐 ${recs[0].funder.name}（利差 ${recs[0].spread}%，可配 ${money(recs[0].feasible)}）`, view: "matching", assetId: a.id });
+    }
+  }
+  for (const f of state.funds) {
+    if (f.status !== "法币已到账") {
+      const fu = (state.funders.find((x) => x.id === f.funderId) || {}).name || "";
+      items.push({ sev: "important", cat: "资金", text: `流水 ${f.id}${fu ? `（${fu}）` : ""} 未到账：${f.status}，资金暂不可用`, view: "funding", tab: "flows" });
+    }
+  }
+  const order = { urgent: 0, important: 1, tip: 2 };
+  items.sort((a, b) => order[a.sev] - order[b.sev]);
+
+  const counts = { urgent: 0, important: 0, tip: 0 };
+  items.forEach((i) => counts[i.sev]++);
+
+  // 右上角：可点击筛选
+  const filters = [["all", "全部", items.length], ["urgent", "紧急", counts.urgent], ["important", "重要", counts.important], ["tip", "提醒", counts.tip]];
+  document.getElementById("todoSummary").innerHTML = filters.map(([k, lab, n]) =>
+    `<button class="todo-filter ${todoFilter === k ? "active" : ""}" data-filter="${k}">${k === "all" ? "" : `<span class="todo-dot ${k}"></span>`}${lab} ${n}</button>`).join("");
+
+  const filtered = todoFilter === "all" ? items : items.filter((i) => i.sev === todoFilter);
+  lastTodos = filtered;
+  document.getElementById("todoList").replaceChildren(
+    ...(filtered.length ? filtered.map((it, idx) => {
+      const row = document.createElement("div");
+      row.className = `todo-row ${it.sev}`;
+      row.dataset.idx = String(idx);
+      row.innerHTML = `<span class="todo-cat cat-${it.cat}">${it.cat}</span><span class="todo-text">${it.text}</span><span class="todo-go">→</span>`;
+      return row;
+    }) : [Object.assign(document.createElement("div"), { className: "todo-empty", textContent: "该分类暂无事项 🎉" })]),
+  );
+}
+
 function renderAssets() {
   document.getElementById("assetGrid").replaceChildren(
     ...state.assets.map((item) => {
@@ -194,6 +312,12 @@ function renderAssets() {
       const pillClass = item.category === "LOC" ? "loc" : item.category === "DPL" ? "dpl" : "fast";
       card.className = "asset-card clickable";
       card.dataset.id = item.id;
+      const qo = qualOverall(item);
+      const qoCls = qo === "已过审" ? "ok" : qo === "未过审" ? "no" : "wait";
+      const u = urgency(item);
+      const d = daysLeft(item);
+      const cdCls = u === "expired" ? "no" : u === "urgent" ? "urgent" : u === "soon" ? "wait" : "ok";
+      const cdText = u === "expired" ? "已过期" : `剩 ${d} 天`;
       card.innerHTML = `
         <header><span class="pill ${pillClass}">${item.category}</span><span>${item.status}</span></header>
         <h3>${item.name}</h3>
@@ -201,18 +325,30 @@ function renderAssets() {
         <dl>
           <div><dt>本金</dt><dd>${money(item.amount)}</dd></div>
           <div><dt>收益率</dt><dd>${item.yield}</dd></div>
-          <div><dt>已配资</dt><dd>${money(assetMatched(item.id))}</dd></div>
           <div><dt>缺口</dt><dd>${assetRemaining(item) ? money(assetRemaining(item)) : "已配齐"}</dd></div>
-          <div><dt>资料</dt><dd>${item.docs}</dd></div>
+          <div><dt>资质</dt><dd><span class="qual-tag ${qoCls}">${qo}</span></dd></div>
+          <div><dt>最晚需求</dt><dd>${item.deadline || "-"} <span class="cd ${cdCls}">${cdText}</span></dd></div>
         </dl>`;
       return card;
     }),
   );
 }
 
+let fundFilter = "all";
 function renderFunds() {
+  // 状态筛选 chips（含各状态计数）
+  const counts = {};
+  state.funds.forEach((f) => { counts[f.status] = (counts[f.status] || 0) + 1; });
+  const statuses = ["稳定币待打款", "稳定币已到账", "稳定币换汇中", "法币已形成", "法币待提现", "法币已到账"].filter((s) => counts[s]);
+  const chips = [["all", "全部", state.funds.length], ...statuses.map((s) => [s, s, counts[s]])];
+  const filterEl = document.getElementById("flowFilter");
+  if (filterEl) {
+    filterEl.innerHTML = chips.map(([k, lab, n]) => `<button class="flow-chip ${fundFilter === k ? "active" : ""}" data-status="${k}">${lab} ${n}</button>`).join("");
+  }
+
+  const rows = fundFilter === "all" ? state.funds : state.funds.filter((f) => f.status === fundFilter);
   document.getElementById("fundTable").replaceChildren(
-    ...state.funds.map((item) => {
+    ...(rows.length ? rows.map((item) => {
       const row = document.createElement("tr");
       row.className = "clickable";
       row.dataset.id = item.id;
@@ -227,7 +363,7 @@ function renderFunds() {
         <td>${item.fiat ? money(item.fiat) : "-"}</td>
         <td><button class="secondary advance-fund" data-id="${item.id}">推进状态</button></td>`;
       return row;
-    }),
+    }) : [Object.assign(document.createElement("tr"), { innerHTML: `<td colspan="7" style="color:var(--muted)">该状态暂无流水。</td>` })]),
   );
 }
 
@@ -260,6 +396,7 @@ function renderFunders() {
           <span class="rule-tag">收益 ≥${f.minYield}%</span>
           <span class="rule-tag">期限：${f.tenure.join("、")}</span>
         </div>
+        ${f.startDate || f.dueDate ? `<p class="funder-window">🗓 资金窗口：${f.startDate || "-"} 起息 → ${f.dueDate || "-"} 还款</p>` : ""}
         <div class="funder-bar-wrap">
           <div class="funder-bar-labels"><span>已部署 ${money(deployed)}</span><span>可用 ${money(avail)}</span></div>
           <div class="funder-bar"><div class="funder-bar-fill" style="width:${pct}%"></div></div>
@@ -296,6 +433,8 @@ function openFunderDetail(funderId) {
     ["最低收益要求", `≥ ${funder.minYield}%`],
     ["单笔额度范围", `${money(funder.minTicket)} – ${money(funder.maxTicket)}`],
     ["资金期限偏好", funder.tenure.join("、")],
+    ["起息日", funder.startDate || "-"],
+    ["还款日", funder.dueDate || "-"],
   ].map(([k, v]) => `<div><span>${k}</span><strong>${v}</strong></div>`).join("");
 
   if (eligibleAssets.length) {
@@ -308,6 +447,13 @@ function openFunderDetail(funderId) {
   if (flows.length) {
     html += `<div class="detail-section-label">名下资金流水（${flows.length} 笔）</div>`;
     html += flows.map((fl) => `<div><span>${fl.id}</span><strong>${fl.status}</strong></div>`).join("");
+  }
+
+  // 已配资产明细（feature 1）
+  const myMatches = state.matches.filter((m) => m.funderId === funder.id);
+  if (myMatches.length) {
+    html += `<div class="detail-section-label">已配资产明细（${myMatches.length} 笔，共 ${money(deployed)}）</div>`;
+    html += myMatches.map((m) => `<div><span>${m.assetName} · ${m.fundId}</span><strong>${money(m.amount)}</strong></div>`).join("");
   }
 
   document.getElementById("assetDialogBody").innerHTML = html;
@@ -368,6 +514,23 @@ function renderCosts() {
 const DOC_DONE = ["已归档", "已上传", "已完成", "已签署"];
 const docIncomplete = (status) => !DOC_DONE.includes(status);
 const docOwner = (scope) => (scope === "fund" ? "资方 / 法务对接人" : "资产方对接人");
+
+function renderMaterialContext(asset) {
+  const el = document.getElementById("materialContextBanner");
+  if (!el) return;
+  if (!asset) { el.innerHTML = ""; return; }
+  const q = asset.qualification;
+  const dims = q ? `实控人「${q.controller.status}」· 企业「${q.company.status}」· 店铺「${q.shop.status}」` : "";
+  el.innerHTML = `
+    <div class="material-context">
+      <div>
+        <strong>📎 正在查看 ${asset.name} 的资质审核材料</strong>
+        <p>${dims}</p>
+        <span class="material-future">合同管理系统对接后，将深链至该资产的专属材料包（征信报告 / 营业执照 / GMV 报表 / 店铺后台等）。</span>
+      </div>
+      <button class="secondary" id="materialContextClear">清除</button>
+    </div>`;
+}
 
 function renderDisclosureMetrics() {
   const allDocs = [...state.fundDocs, ...state.assetDocs];
@@ -450,24 +613,30 @@ function openDialog(type, editId) {
           <label class="check-inline"><input type="checkbox" name="tenure" value="6个月" ${chk(f ? f.tenure : [], "6个月")} /> 6个月</label>
         </div>
       </div>
-      <label>承诺额度<input name="committed" type="number" value="${f ? f.committed : 500000}" /></label>`;
+      <label>承诺额度<input name="committed" type="number" value="${f ? f.committed : 500000}" /></label>
+      <label>起息日<input name="startDate" type="date" value="${f ? f.startDate || "" : ""}" /></label>
+      <label>还款日<input name="dueDate" type="date" value="${f ? f.dueDate || "" : ""}" /></label>`;
     dialog.showModal();
     return;
   }
   if (type === "match") {
-    const openAssets = state.assets.filter((asset) => assetRemaining(asset) > 0);
+    const openAssets = state.assets.filter((asset) => assetRemaining(asset) > 0 && eligibleForMatch(asset));
     const openFunds = state.funds.filter((fund) => fundAvailable(fund) > 0);
     if (!openAssets.length || !openFunds.length) {
-      fields.innerHTML = `<p style="color:var(--muted)">${!openFunds.length ? "暂无可用法币：请先在「资金流转」把流水推进到「法币已到账」。" : "所有资产都已配齐，暂无可撮合的缺口。"}</p>`;
+      fields.innerHTML = `<p style="color:var(--muted)">${!openFunds.length ? "暂无可用法币：请先在「资金流转」把流水推进到「法币已到账」。" : "暂无可撮合的资产：资产已全部配齐，或存在缺口但资质未过审（撮合需资质已过审）。"}</p>`;
       document.getElementById("submitRecord").disabled = true;
       dialog.showModal();
       return;
     }
     document.getElementById("submitRecord").disabled = false;
 
-    // 计算初始建议金额
+    // 初始建议金额 = 最优推荐资金方的可行金额（默认即落在准入范围内）
+    const suggestedAmount = (asset) => {
+      const r = recommendFunders(asset, assetRemaining(asset));
+      return r[0] ? r[0].feasible : assetRemaining(asset);
+    };
     const firstAsset = openAssets[0];
-    const defaultAmount = assetRemaining(firstAsset);
+    const defaultAmount = suggestedAmount(firstAsset);
 
     // 资金方准入筛选（根据当前选中资产动态生成）
     const buildFunderOptions = (asset, amount) => state.funders.map((fu) => {
@@ -490,16 +659,17 @@ function openDialog(type, editId) {
       const eligibleCount = funderOpts.filter((o) => o.allPass).length;
       // 推荐：在「按当前金额通过全部准入」的资金方里，挑利差最高的
       const ay = parseFloat(asset.yield);
-      const passing = funderOpts.filter((o) => o.allPass).map((o) => ({ fu: o.fu, spread: Math.round((ay - o.fu.minYield) * 100) / 100 })).sort((a, b) => b.spread - a.spread);
+      const passing = funderOpts.filter((o) => o.allPass && funderLiquidity(o.fu.id) > 0).map((o) => ({ fu: o.fu, spread: Math.round((ay - o.fu.minYield) * 100) / 100 })).sort((a, b) => b.spread - a.spread);
       const bestId = passing[0] ? passing[0].fu.id : null;
       const bestSpread = passing[0] ? passing[0].spread : 0;
 
-      const funderHtml = funderOpts.map(({ fu, allPass, failReasons }) =>
-        `<div class="funder-check ${allPass ? "pass" : "fail"}">
-          <span>${allPass ? "✅" : "❌"} ${fu.name}${allPass && fu.id === bestId ? ' <em class="rec-badge">⭐ 推荐</em>' : ""}</span>
-          <small>${allPass ? `${fu.eligible.join("、")} · ≥${fu.minYield}% · ${fu.tenure.join("、")}${fu.id === bestId ? ` · 利差 ${bestSpread}%` : ""}` : `不符合：${failReasons}`}</small>
-        </div>`
-      ).join("");
+      const funderHtml = funderOpts.map(({ fu, allPass, failReasons }) => {
+        const illiquid = allPass && funderLiquidity(fu.id) <= 0;
+        return `<div class="funder-check ${allPass ? (illiquid ? "warn" : "pass") : "fail"}">
+          <span>${allPass ? (illiquid ? "⚠️" : "✅") : "❌"} ${fu.name}${allPass && !illiquid && fu.id === bestId ? ' <em class="rec-badge">⭐ 推荐</em>' : ""}</span>
+          <small>${allPass ? (illiquid ? "准入通过，但暂无已到账法币流水，不可选（需先在「资金管理」录入并推进到「法币已到账」）" : `${fu.eligible.join("、")} · ≥${fu.minYield}% · ${fu.tenure.join("、")}${fu.id === bestId ? ` · 利差 ${bestSpread}%` : ""}`) : `不符合：${failReasons}`}</small>
+        </div>`;
+      }).join("");
 
       const fundSelectHtml = fundOpts.length
         ? `<label>资金流水（已过滤准入）<select name="fundId">${fundOpts.map((f) => {
@@ -510,10 +680,20 @@ function openDialog(type, editId) {
             ? "通过准入的资金方暂无「已到账法币」可用：其资金流水尚未形成法币，请到「资金管理 → 资金流转」把对应流水推进到「法币已到账」后再来匹配。"
             : "当前无资金方通过全部准入规则，请调整金额、调整资产期限或先补充资料。"}</p>`;
 
+      const rem = assetRemaining(asset);
+      const sug = suggestedAmount(asset);
+      const leftover = rem - amount;
+      let hint;
+      if (amount > rem) hint = `<span class="warn">⚠️ 配资金额超过缺口 ${money(rem)}。</span>`;
+      else if (leftover === 0) hint = `本笔将配满缺口 ${money(rem)}。`;
+      else if (amount === sug) hint = `💡 已填入<strong>推荐金额</strong>（最优资金方单笔可配 ${money(amount)}）；剩余 <strong>${money(leftover)}</strong> 待另配，可用「一键采纳推荐」分笔补足。`;
+      else hint = `本笔配 ${money(amount)}，剩余 <strong>${money(leftover)}</strong> 待另配。`;
+
       fields.innerHTML = `
         <label>待配资产<select name="assetId">${openAssets.map((a) =>
           `<option value="${a.id}" ${a.id === assetId ? "selected" : ""}>${a.name} · ${a.category} · ${a.yield} · ${a.tenure} · 缺口 ${money(assetRemaining(a))}</option>`).join("")}</select></label>
         <label>配资金额<input name="amount" type="number" min="0" value="${amount}" /></label>
+        <p class="match-hint">${hint}</p>
         <div class="funder-check-group"><div class="funder-check-label">资金方准入校验（${eligibleCount}/${funderOpts.length} 通过）</div>${funderHtml}</div>
         ${fundSelectHtml}`;
 
@@ -523,8 +703,9 @@ function openDialog(type, editId) {
       const rerender = () => renderMatchFields(assetSel.value, Number(amtInput.value) || assetRemaining(state.assets.find((a) => a.id === assetSel.value)));
       assetSel.addEventListener("change", () => {
         const a = state.assets.find((x) => x.id === assetSel.value);
-        amtInput.value = assetRemaining(a);
-        renderMatchFields(assetSel.value, assetRemaining(a));
+        const sug = suggestedAmount(a);
+        amtInput.value = sug;
+        renderMatchFields(assetSel.value, sug);
       });
       amtInput.addEventListener("input", rerender);
     };
@@ -545,6 +726,7 @@ function openDialog(type, editId) {
   } else {
     fields.innerHTML = `
       <label>流水号<input name="id" value="FR-2026-0527-NEW" /></label>
+      <label>所属资金方<select name="funderId">${state.funders.map((f) => `<option value="${f.id}">${f.name}</option>`).join("")}</select></label>
       <label>稳定币<select name="coin"><option>USDT</option><option>USDC</option></select></label>
       <label>金额<input name="amount" type="number" value="100000" /></label>
       <label>网络<select name="network"><option>Tron</option><option>Ethereum</option><option>Polygon</option></select></label>
@@ -561,6 +743,8 @@ function openAssetDetail(assetId) {
   const lacking = asset.status === "资料缺失" || asset.status === "待复核" || /缺|待上传/.test(asset.docs);
   document.getElementById("assetDialogTitle").textContent = asset.name;
 
+  const d = daysLeft(asset);
+  const cdText = d < 0 ? "已过期" : `剩 ${d} 天`;
   const rows = [
     ["产品类别", asset.category],
     ["状态", asset.status],
@@ -568,6 +752,7 @@ function openAssetDetail(assetId) {
     ["收益率", asset.yield],
     ["已配资", money(matched)],
     ["缺口", remaining ? money(remaining) : "已配齐"],
+    ["最晚需求日", `${asset.deadline || "-"}（${cdText}）`],
     ["申请人", asset.applicant || "待指派"],
     ["资料", asset.docs],
   ];
@@ -575,10 +760,36 @@ function openAssetDetail(assetId) {
   if (lacking) {
     html += `<div class="detail-note">资料不完整，需申请人补齐后才能进入正式撮合。${asset.reminded ? `<br/><em>已于 ${asset.reminded} 发送提醒 / 任务</em>` : ""}</div>`;
   }
-  // 匹配建议：推荐最优资金方
+
+  // 资产方资质（第三道门）
+  const qo = qualOverall(asset);
+  const q = asset.qualification;
+  if (q) {
+    const dimCls = (s) => (s === "通过" ? "ok" : s === "不通过" ? "no" : "wait");
+    html += `<div class="detail-section-label">资产方资质审核 · ${qo}</div>`;
+    html += `<div class="qual-dim ${dimCls(q.controller.status)}"><div class="qual-dim-head"><span>① 实控人</span><strong>${q.controller.status}</strong></div><small>${q.controller.nationality} · ${q.controller.identity} · ${q.controller.credit}</small></div>`;
+    html += `<div class="qual-dim ${dimCls(q.company.status)}"><div class="qual-dim-head"><span>② 企业</span><strong>${q.company.status}</strong></div><small>${q.company.age} · ${q.company.type} · ${q.company.ltmGmv} · ${q.company.entity}</small></div>`;
+    html += `<div class="qual-dim ${dimCls(q.shop.status)}"><div class="qual-dim-head"><span>③ 店铺</span><strong>${q.shop.status}</strong></div><small>${q.shop.returnRate} · ${q.shop.repayRate} · ${q.shop.closeRate} · ${q.shop.platform}</small></div>`;
+  }
+
+  // 已配资明细（feature 1）
+  const myMatches = state.matches.filter((m) => m.assetId === asset.id);
+  if (myMatches.length) {
+    html += `<div class="detail-section-label">已配资明细（${myMatches.length} 笔）</div>`;
+    html += myMatches.map((m) => {
+      const fu = m.funderId ? (state.funders.find((f) => f.id === m.funderId) || {}).name || "-" : "-";
+      return `<div><span>${m.fundId} · ${fu}</span><strong>${money(m.amount)}</strong></div>`;
+    }).join("");
+  }
+
+  // 匹配建议（需资质已过审 且 未过期）
   const matchAmount = remaining || asset.amount;
-  const recs = recommendFunders(asset, matchAmount);
-  if (recs.length) {
+  const recs = eligibleForMatch(asset) ? recommendFunders(asset, matchAmount) : [];
+  if (d < 0) {
+    html += `<div class="detail-note" style="background:#f0f1f3;color:#5a6470">⛔ 资产已过期（最晚需求日 ${asset.deadline}），客户资金需求已失效，不再进入撮合。</div>`;
+  } else if (!qualified(asset)) {
+    html += `<div class="detail-note" style="background:#fcefde;color:var(--orange)">⛔ 资产方资质为「${qo}」，未过审前不可进入撮合。请先完成三维度资质审核。</div>`;
+  } else if (recs.length) {
     const best = recs[0];
     const partial = best.feasible < matchAmount;
     html += `<div class="detail-note" style="background:#e6f4ec;color:var(--green)">💡 推荐资金方：<strong>${best.funder.name}</strong> —— 资产收益 ${asset.yield} 对其要求 ≥${best.funder.minYield}%，利差最高 <strong>${best.spread}%</strong>，可配 <strong>${money(best.feasible)}</strong>${partial ? `（缺口 ${money(matchAmount)}，需分笔/多家补足）` : ""}。</div>`;
@@ -587,7 +798,7 @@ function openAssetDetail(assetId) {
       <span>${i === 0 ? "⭐ " : `${i + 1}. `}${r.funder.name}</span>
       <strong>利差 ${r.spread}% · 可配 ${money(r.feasible)}</strong>
     </div>`).join("");
-  } else {
+  } else if (remaining > 0) {
     html += `<div class="detail-note" style="background:#f0f4ff;color:#2c5f8f">暂无资金方同时满足全部准入规则（类型 / 收益 / 期限 / 金额 / 额度），无法给出匹配建议。</div>`;
   }
   document.getElementById("assetDialogBody").innerHTML = html;
@@ -595,10 +806,12 @@ function openAssetDetail(assetId) {
   const buttons = [];
   if (lacking) {
     buttons.push(`<button class="primary" id="assetRemind" data-id="${asset.id}">${asset.reminded ? "再次提醒申请人" : "发送补件提醒 / 任务"}</button>`);
-  } else if (remaining > 0) {
+  }
+  if (eligibleForMatch(asset) && remaining > 0) {
     if (recs.length) buttons.push(`<button class="primary" id="assetAdoptPlan" data-id="${asset.id}">一键采纳推荐</button>`);
     buttons.push(`<button class="secondary" id="assetToMatch" data-id="${asset.id}">手动撮合</button>`);
   }
+  if (asset.qualification) buttons.push(`<button class="secondary" id="qualToDisclosure" data-id="${asset.id}">查看审核材料</button>`);
   buttons.push(`<button class="secondary" id="assetDetailDone">关闭</button>`);
   document.getElementById("assetDialogActions").innerHTML = buttons.join("");
   { const _d = document.getElementById("assetDialog"); if (!_d.open) _d.showModal(); }
@@ -695,7 +908,13 @@ document.getElementById("assetDialogClose").addEventListener("click", () => docu
 document.getElementById("assetDialogActions").addEventListener("click", (event) => {
   const target = event.target.closest("button");
   if (!target) return;
-  if (target.id === "assetDetailDone") {
+  if (target.id === "qualToDisclosure") {
+    const a = state.assets.find((x) => x.id === target.dataset.id);
+    document.getElementById("assetDialog").close();
+    renderMaterialContext(a || null);
+    setView("disclosure");
+    addActivity(`查看资质审核材料：${a ? a.name : ""}`);
+  } else if (target.id === "assetDetailDone") {
     document.getElementById("assetDialog").close();
   } else if (target.id === "assetRemind") {
     const asset = state.assets.find((a) => a.id === target.dataset.id);
@@ -740,6 +959,21 @@ document.getElementById("assetDialogActions").addEventListener("click", (event) 
   }
 });
 
+document.getElementById("todoSummary").addEventListener("click", (e) => {
+  const btn = e.target.closest(".todo-filter");
+  if (!btn) return;
+  todoFilter = btn.dataset.filter;
+  renderTodos();
+});
+document.getElementById("todoList").addEventListener("click", (e) => {
+  const row = e.target.closest(".todo-row");
+  if (!row) return;
+  const it = lastTodos[Number(row.dataset.idx)];
+  if (!it) return;
+  setView(it.view);
+  if (it.tab) { const btn = document.querySelector(`.tab-btn[data-tab="${it.tab}"]`); if (btn) btn.click(); }
+  if (it.assetId) openAssetDetail(it.assetId);
+});
 document.querySelectorAll(".metric.clickable").forEach((card) => {
   card.addEventListener("click", () => {
     const jump = card.dataset.jump === "funds" ? "funding" : card.dataset.jump;
@@ -767,6 +1001,15 @@ document.getElementById("jumpToContracts").addEventListener("click", () => {
 document.getElementById("funderGrid").addEventListener("click", (e) => {
   const card = e.target.closest(".funder-card");
   if (card) openFunderDetail(card.dataset.id);
+});
+document.getElementById("materialContextBanner").addEventListener("click", (e) => {
+  if (e.target.closest("#materialContextClear")) renderMaterialContext(null);
+});
+document.getElementById("flowFilter").addEventListener("click", (e) => {
+  const chip = e.target.closest(".flow-chip");
+  if (!chip) return;
+  fundFilter = chip.dataset.status;
+  renderFunds();
 });
 document.getElementById("addFunder").addEventListener("click", () => openDialog("funder"));
 document.getElementById("globalAdd").addEventListener("click", () => openDialog(state.currentView === "assets" ? "asset" : state.currentView === "matching" ? "match" : "fund"));
@@ -799,6 +1042,8 @@ document.getElementById("recordForm").addEventListener("submit", (event) => {
       maxTicket: Number(data.maxTicket) || 0,
       tenure: tenure.length ? tenure : ["6个月"],
       committed: Number(data.committed) || 0,
+      startDate: data.startDate || "",
+      dueDate: data.dueDate || "",
     };
     const editId = form.dataset.editId;
     if (editId) {
@@ -815,7 +1060,15 @@ document.getElementById("recordForm").addEventListener("submit", (event) => {
     form.dataset.editId = "";
   } else if (form.dataset.type === "asset") {
     const id = `AS-${String(++state.assetSeq).padStart(3, "0")}`;
-    state.assets.unshift({ id, name: data.name, category: data.category, amount: Number(data.amount), yield: data.yield, status: "待匹配", docs: "待上传", applicant: "待指派", reminded: "" });
+    const dl = new Date(Date.now() + 21 * 86400000).toISOString().slice(0, 10);
+    state.assets.unshift({
+      id, name: data.name, category: data.category, amount: Number(data.amount), yield: data.yield, deadline: dl, status: "待匹配", docs: "待上传", applicant: "待指派", reminded: "",
+      qualification: {
+        controller: { status: "待补", nationality: "待核", identity: "待核", credit: "待核" },
+        company: { status: "待补", age: "待核", type: "待核", ltmGmv: "待核", entity: "待核" },
+        shop: { status: "待补", returnRate: "待核", repayRate: "待核", closeRate: "待核", platform: "待核" },
+      },
+    });
     renderAssets();
     renderMatching();
     addActivity(`新增资产 ${data.name}`);
@@ -838,8 +1091,10 @@ document.getElementById("recordForm").addEventListener("submit", (event) => {
     renderDocs();
     addActivity(`上传资料 ${data.name}`);
   } else {
-    state.funds.unshift({ id: data.id, coin: data.coin, amount: Number(data.amount), network: data.network, status: data.status, fiat: data.status === "法币已到账" ? Number(data.amount) * 0.998 : 0 });
+    state.funds.unshift({ id: data.id, funderId: data.funderId || "", coin: data.coin, amount: Number(data.amount), network: data.network, status: data.status, fiat: data.status === "法币已到账" ? Number(data.amount) * 0.998 : 0 });
     renderFunds();
+    renderFunders();
+    renderMatching();
     addActivity(`新增资金流转 ${data.id}`);
   }
   document.getElementById("recordDialog").close();
@@ -861,7 +1116,16 @@ document.getElementById("fundTable").addEventListener("click", (event) => {
   renderFunds();
   renderDashboard();
   renderMatching();
+  renderFunders();
   addActivity(`${item.id} 状态推进为 ${next}`);
+  // 到账自动提示：列出该资金方现在可撮合的（已过审且其准入通过的）资产
+  if (next === "法币已到账") {
+    const fu = state.funders.find((f) => f.id === item.funderId);
+    if (fu && fu.status === "活跃") {
+      const matchable = state.assets.filter((a) => assetRemaining(a) > 0 && eligibleForMatch(a) && isEligible(fu, a, Math.min(assetRemaining(a), fu.maxTicket, funderAvailable(fu))));
+      if (matchable.length) addActivity(`💡 ${item.id} 已到账，${fu.name} 现可撮合：${matchable.map((a) => a.name).join("、")}`);
+    }
+  }
 });
 
 document.getElementById("matchTable").addEventListener("click", (event) => {
