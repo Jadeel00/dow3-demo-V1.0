@@ -237,6 +237,8 @@ menu { display: flex; justify-content: flex-end; gap: 10px; padding: 0; margin: 
 .funder-status { font-size: 12px; font-weight: 700; }
 .funder-status.active { color: var(--green); }
 .funder-status.paused { color: var(--muted); }
+.funder-disabled { opacity: .6; filter: grayscale(.5); }
+.funder-disabled .funder-bar-fill { background: var(--faint); }
 .funder-rules { display: flex; flex-wrap: wrap; gap: 6px; }
 .rule-tag { background: #f0f6f2; color: var(--green); border: 1px solid #cce5d6; border-radius: 999px; padding: 4px 10px; font-size: 12px; font-weight: 700; }
 .funder-bar-wrap { display: grid; gap: 6px; }

@@ -75,6 +75,7 @@ const funderAvailable = (funder) => Math.max(0, funder.committed - funderDeploye
 function checkEligibility(funder, asset, amount) {
   const assetYield = parseFloat(asset.yield);
   return [
+    { rule: "资金方状态", pass: funder.status === "活跃", detail: funder.status },
     { rule: "资产类型", pass: funder.eligible.includes(asset.category), detail: `${funder.eligible.join("、")} ← ${asset.category}` },
     { rule: "收益要求", pass: assetYield >= funder.minYield, detail: `要求 ≥${funder.minYield}%，资产 ${asset.yield}` },
     { rule: "单笔额度", pass: amount >= funder.minTicket && amount <= funder.maxTicket, detail: `${money(funder.minTicket)}–${money(funder.maxTicket)}，请求 ${money(amount)}` },
@@ -92,11 +93,54 @@ function recommendFunders(asset, target) {
   return state.funders
     .map((fu) => {
       const feasible = Math.min(target, fu.maxTicket, funderAvailable(fu));
-      const ok = fu.eligible.includes(asset.category) && assetYield >= fu.minYield && fu.tenure.includes(asset.tenure) && feasible >= fu.minTicket && feasible > 0;
+      const ok = fu.status === "活跃" && fu.eligible.includes(asset.category) && assetYield >= fu.minYield && fu.tenure.includes(asset.tenure) && feasible >= fu.minTicket && feasible > 0;
       return { funder: fu, ok, spread: Math.round((assetYield - fu.minYield) * 100) / 100, feasible, available: funderAvailable(fu) };
     })
     .filter((o) => o.ok)
     .sort((a, b) => b.spread - a.spread || b.feasible - a.feasible);
+}
+
+// 资金方的「可立即配」流动性 = 其名下已到账流水的可用法币之和
+const funderLiquidity = (funderId) => state.funds.filter((f) => f.funderId === funderId).reduce((s, f) => s + fundAvailable(f), 0);
+
+// 多家分笔自动拆分：按利差从高到低，依次用各家可行额度填补缺口
+function buildSplitPlan(asset) {
+  let need = assetRemaining(asset);
+  const recs = recommendFunders(asset, need);
+  const plan = [];
+  for (const r of recs) {
+    if (need <= 0) break;
+    const cap = Math.min(need, r.funder.maxTicket, funderAvailable(r.funder));
+    if (cap < r.funder.minTicket) continue; // 剩余缺口不足该资金方单笔下限
+    const liquid = funderLiquidity(r.funder.id);
+    const immediate = Math.min(cap, liquid);
+    plan.push({ funder: r.funder, alloc: cap, immediate, pending: cap - immediate, spread: r.spread });
+    need -= cap;
+  }
+  return { plan, uncovered: Math.max(0, need) };
+}
+
+// 执行方案：仅对「已到账法币」部分生成实际撮合（分摊到该资金方名下流水）
+function executePlan(asset, plan) {
+  let createdAmt = 0;
+  for (const item of plan) {
+    let toMatch = item.immediate;
+    const funds = state.funds.filter((f) => f.funderId === item.funder.id && fundAvailable(f) > 0);
+    for (const fund of funds) {
+      if (toMatch <= 0) break;
+      const amt = Math.min(toMatch, fundAvailable(fund), assetRemaining(asset));
+      if (amt <= 0) continue;
+      const id = `MT-${String(++state.matchSeq).padStart(3, "0")}`;
+      state.matches.unshift({ id, assetId: asset.id, assetName: asset.name, fundId: fund.id, funderId: fund.funderId || "", amount: amt, time: new Date().toLocaleString("zh-CN", { hour12: false }) });
+      toMatch -= amt;
+      createdAmt += amt;
+    }
+  }
+  syncAssetStatus(asset);
+  renderAssets();
+  renderFunders();
+  renderMatching();
+  return createdAmt;
 }
 
 // 撮合满额的资产标记为「已匹配」，否则回落到「待匹配」(资料相关状态不覆盖)
@@ -202,7 +246,7 @@ function renderFunders() {
       const avail = funderAvailable(f);
       const pct = f.committed ? Math.round((deployed / f.committed) * 100) : 0;
       const card = document.createElement("article");
-      card.className = "funder-card clickable";
+      card.className = `funder-card clickable${f.status === "活跃" ? "" : " funder-disabled"}`;
       card.dataset.id = f.id;
       card.innerHTML = `
         <header>
@@ -267,11 +311,13 @@ function openFunderDetail(funderId) {
   }
 
   document.getElementById("assetDialogBody").innerHTML = html;
-  const pending = avail > 0 && eligibleAssets.length > 0;
+  const pending = avail > 0 && eligibleAssets.length > 0 && funder.status === "活跃";
   document.getElementById("assetDialogActions").innerHTML = `
     ${pending ? `<button class="primary" id="funderToMatch" data-id="${funder.id}">去撮合</button>` : ""}
+    <button class="secondary" id="funderEdit" data-id="${funder.id}">编辑</button>
+    <button class="secondary" id="funderToggle" data-id="${funder.id}">${funder.status === "活跃" ? "停用" : "启用"}</button>
     <button class="secondary" id="assetDetailDone">关闭</button>`;
-  document.getElementById("assetDialog").showModal();
+  { const _d = document.getElementById("assetDialog"); if (!_d.open) _d.showModal(); }
 }
 
 function renderMatching() {
@@ -367,38 +413,44 @@ function calculateCost() {
   return { currency, platformFee, rateLoss };
 }
 
-function openDialog(type) {
+function openDialog(type, editId) {
   const dialog = document.getElementById("recordDialog");
   const fields = document.getElementById("dialogFields");
   document.getElementById("recordForm").dataset.type = type;
+  document.getElementById("recordForm").dataset.editId = "";
   document.getElementById("dialogTitle").textContent = type === "asset" ? "新增资产" : type === "doc" ? "上传资料" : type === "match" ? "新建匹配" : type === "funder" ? "新增资金方" : "新增资金流转";
   if (type === "funder") {
+    const f = editId ? state.funders.find((x) => x.id === editId) : null;
+    if (f) {
+      document.getElementById("dialogTitle").textContent = `编辑资金方 · ${f.name}`;
+      document.getElementById("recordForm").dataset.editId = f.id;
+    }
+    const chk = (arr, v) => (f ? (arr.includes(v) ? "checked" : "") : (v === "LOC" || v === "DPL" || v === "3个月" || v === "6个月" ? "checked" : ""));
     document.getElementById("submitRecord").disabled = false;
     fields.innerHTML = `
-      <label>资金方名称<input name="name" value="新资金方" /></label>
-      <label>类型<input name="type" value="机构 LP" /></label>
-      <label>联系人<input name="contact" value="对接人" /></label>
+      <label>资金方名称<input name="name" value="${f ? f.name : "新资金方"}" /></label>
+      <label>类型<input name="type" value="${f ? f.type : "机构 LP"}" /></label>
+      <label>联系人<input name="contact" value="${f ? f.contact : "对接人"}" /></label>
       <div class="field-group">
         <span class="field-label">可配资产类型</span>
         <div class="check-row">
-          <label class="check-inline"><input type="checkbox" name="eligible" value="LOC" checked /> LOC</label>
-          <label class="check-inline"><input type="checkbox" name="eligible" value="DPL" checked /> DPL</label>
-          <label class="check-inline"><input type="checkbox" name="eligible" value="Fast Pay" /> Fast Pay</label>
+          <label class="check-inline"><input type="checkbox" name="eligible" value="LOC" ${chk(f ? f.eligible : [], "LOC")} /> LOC</label>
+          <label class="check-inline"><input type="checkbox" name="eligible" value="DPL" ${chk(f ? f.eligible : [], "DPL")} /> DPL</label>
+          <label class="check-inline"><input type="checkbox" name="eligible" value="Fast Pay" ${chk(f ? f.eligible : [], "Fast Pay")} /> Fast Pay</label>
         </div>
       </div>
-      <label>最低收益要求 (%)<input name="minYield" type="number" step="0.1" value="12" /></label>
-      <label>单笔最小金额<input name="minTicket" type="number" value="50000" /></label>
-      <label>单笔最大金额<input name="maxTicket" type="number" value="500000" /></label>
+      <label>最低收益要求 (%)<input name="minYield" type="number" step="0.1" value="${f ? f.minYield : 12}" /></label>
+      <label>单笔最小金额<input name="minTicket" type="number" value="${f ? f.minTicket : 50000}" /></label>
+      <label>单笔最大金额<input name="maxTicket" type="number" value="${f ? f.maxTicket : 500000}" /></label>
       <div class="field-group">
         <span class="field-label">资金期限偏好</span>
         <div class="check-row">
-          <label class="check-inline"><input type="checkbox" name="tenure" value="随时可赎回" /> 随时可赎回</label>
-          <label class="check-inline"><input type="checkbox" name="tenure" value="3个月" checked /> 3个月</label>
-          <label class="check-inline"><input type="checkbox" name="tenure" value="6个月" checked /> 6个月</label>
+          <label class="check-inline"><input type="checkbox" name="tenure" value="随时可赎回" ${chk(f ? f.tenure : [], "随时可赎回")} /> 随时可赎回</label>
+          <label class="check-inline"><input type="checkbox" name="tenure" value="3个月" ${chk(f ? f.tenure : [], "3个月")} /> 3个月</label>
+          <label class="check-inline"><input type="checkbox" name="tenure" value="6个月" ${chk(f ? f.tenure : [], "6个月")} /> 6个月</label>
         </div>
       </div>
-      <label>承诺额度<input name="committed" type="number" value="500000" /></label>`;
-    document.getElementById("recordForm").dataset.type = "funder";
+      <label>承诺额度<input name="committed" type="number" value="${f ? f.committed : 500000}" /></label>`;
     dialog.showModal();
     return;
   }
@@ -544,11 +596,43 @@ function openAssetDetail(assetId) {
   if (lacking) {
     buttons.push(`<button class="primary" id="assetRemind" data-id="${asset.id}">${asset.reminded ? "再次提醒申请人" : "发送补件提醒 / 任务"}</button>`);
   } else if (remaining > 0) {
-    buttons.push(`<button class="primary" id="assetToMatch" data-id="${asset.id}">去撮合配资</button>`);
+    if (recs.length) buttons.push(`<button class="primary" id="assetAdoptPlan" data-id="${asset.id}">一键采纳推荐</button>`);
+    buttons.push(`<button class="secondary" id="assetToMatch" data-id="${asset.id}">手动撮合</button>`);
   }
   buttons.push(`<button class="secondary" id="assetDetailDone">关闭</button>`);
   document.getElementById("assetDialogActions").innerHTML = buttons.join("");
-  document.getElementById("assetDialog").showModal();
+  { const _d = document.getElementById("assetDialog"); if (!_d.open) _d.showModal(); }
+}
+
+function openSplitPlanPreview(assetId) {
+  const asset = state.assets.find((a) => a.id === assetId);
+  if (!asset) return;
+  const need = assetRemaining(asset);
+  const { plan, uncovered } = buildSplitPlan(asset);
+  const immediateTotal = plan.reduce((s, p) => s + p.immediate, 0);
+  const pendingTotal = plan.reduce((s, p) => s + p.pending, 0);
+
+  document.getElementById("assetDialogTitle").textContent = `分笔方案 · ${asset.name}`;
+  let html = `<div class="detail-note" style="background:#e6f4ec;color:var(--green)">缺口 ${money(need)}，按利差从高到低自动拆分为 ${plan.length} 笔：</div>`;
+  if (plan.length) {
+    html += plan.map((p, i) => `<div class="rec-row${i === 0 ? " rec-top" : ""}">
+      <span>${i + 1}. ${p.funder.name}</span>
+      <strong>配 ${money(p.alloc)} · 利差 ${p.spread}%${p.pending > 0 ? ` · 含待到账 ${money(p.pending)}` : ""}</strong>
+    </div>`).join("");
+  } else {
+    html += `<div class="detail-note">无符合准入的资金方，无法生成方案。</div>`;
+  }
+  html += `<div class="detail-section-label">方案汇总</div>`;
+  html += `<div><span>✅ 可立即撮合</span><strong>${money(immediateTotal)}</strong></div>`;
+  if (pendingTotal > 0) html += `<div><span>⏳ 待资金到账（暂不生成）</span><strong>${money(pendingTotal)}</strong></div>`;
+  if (uncovered > 0) html += `<div><span>⚠️ 仍缺口（无更多可配资金方）</span><strong>${money(uncovered)}</strong></div>`;
+  document.getElementById("assetDialogBody").innerHTML = html;
+
+  document.getElementById("assetDialogActions").innerHTML = `
+    ${immediateTotal > 0 ? `<button class="primary" id="confirmPlan" data-id="${asset.id}">确认采纳（生成 ${money(immediateTotal)} 撮合）</button>` : ""}
+    <button class="secondary" id="backToDetail" data-id="${asset.id}">返回</button>`;
+  const d = document.getElementById("assetDialog");
+  if (!d.open) d.showModal();
 }
 
 function openDocDetail(scope, index) {
@@ -571,7 +655,7 @@ function openDocDetail(scope, index) {
   if (pending) buttons.push(`<button class="primary" id="docRemind" data-scope="${scope}" data-index="${index}">${doc.reminded ? "再次催办" : "形成催办并发送"}</button>`);
   buttons.push(`<button class="secondary" id="assetDetailDone">关闭</button>`);
   document.getElementById("assetDialogActions").innerHTML = buttons.join("");
-  document.getElementById("assetDialog").showModal();
+  { const _d = document.getElementById("assetDialog"); if (!_d.open) _d.showModal(); }
 }
 
 function openFundDetail(fundId) {
@@ -596,7 +680,7 @@ function openFundDetail(fundId) {
   if (pending) buttons.push(`<button class="primary" id="fundRemind" data-id="${fund.id}">${fund.reminded ? "再次催办" : "形成催办并发送"}</button>`);
   buttons.push(`<button class="secondary" id="assetDetailDone">关闭</button>`);
   document.getElementById("assetDialogActions").innerHTML = buttons.join("");
-  document.getElementById("assetDialog").showModal();
+  { const _d = document.getElementById("assetDialog"); if (!_d.open) _d.showModal(); }
 }
 
 document.getElementById("assetGrid").addEventListener("click", (event) => {
@@ -622,6 +706,25 @@ document.getElementById("assetDialogActions").addEventListener("click", (event) 
     document.getElementById("assetDialog").close();
     setView("matching");
     openDialog("match");
+  } else if (target.id === "assetAdoptPlan") {
+    openSplitPlanPreview(target.dataset.id);
+  } else if (target.id === "backToDetail") {
+    openAssetDetail(target.dataset.id);
+  } else if (target.id === "confirmPlan") {
+    const asset = state.assets.find((a) => a.id === target.dataset.id);
+    const { plan } = buildSplitPlan(asset);
+    const created = executePlan(asset, plan);
+    addActivity(`一键采纳分笔方案：${asset.name} 生成撮合 ${money(created)}`);
+    document.getElementById("assetDialog").close();
+  } else if (target.id === "funderEdit") {
+    document.getElementById("assetDialog").close();
+    openDialog("funder", target.dataset.id);
+  } else if (target.id === "funderToggle") {
+    const fu = state.funders.find((f) => f.id === target.dataset.id);
+    fu.status = fu.status === "活跃" ? "已停用" : "活跃";
+    renderFunders();
+    addActivity(`资金方 ${fu.name} 已${fu.status === "活跃" ? "启用" : "停用"}`);
+    openFunderDetail(fu.id);
   } else if (target.id === "docRemind") {
     const list = target.dataset.scope === "fund" ? state.fundDocs : state.assetDocs;
     const doc = list[Number(target.dataset.index)];
@@ -688,19 +791,28 @@ document.getElementById("recordForm").addEventListener("submit", (event) => {
     const fd = new FormData(form);
     const eligible = fd.getAll("eligible");
     const tenure = fd.getAll("tenure");
-    const id = `FU-${String(++state.funderSeq).padStart(3, "0")}`;
-    state.funders.push({
-      id, name: data.name, type: data.type, contact: data.contact,
+    const fields = {
+      name: data.name, type: data.type, contact: data.contact,
       eligible: eligible.length ? eligible : ["LOC"],
       minYield: Number(data.minYield) || 0,
       minTicket: Number(data.minTicket) || 0,
       maxTicket: Number(data.maxTicket) || 0,
       tenure: tenure.length ? tenure : ["6个月"],
       committed: Number(data.committed) || 0,
-      status: "活跃", reminded: "", note: "",
-    });
-    renderFunders();
-    addActivity(`新增资金方 ${data.name}（可配 ${(eligible.length ? eligible : ["LOC"]).join("、")}）`);
+    };
+    const editId = form.dataset.editId;
+    if (editId) {
+      const fu = state.funders.find((x) => x.id === editId);
+      Object.assign(fu, fields);
+      renderFunders();
+      addActivity(`编辑资金方 ${fu.name}（规则已更新）`);
+    } else {
+      const id = `FU-${String(++state.funderSeq).padStart(3, "0")}`;
+      state.funders.push({ id, ...fields, status: "活跃", reminded: "", note: "" });
+      renderFunders();
+      addActivity(`新增资金方 ${data.name}（可配 ${fields.eligible.join("、")}）`);
+    }
+    form.dataset.editId = "";
   } else if (form.dataset.type === "asset") {
     const id = `AS-${String(++state.assetSeq).padStart(3, "0")}`;
     state.assets.unshift({ id, name: data.name, category: data.category, amount: Number(data.amount), yield: data.yield, status: "待匹配", docs: "待上传", applicant: "待指派", reminded: "" });
