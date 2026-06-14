@@ -466,6 +466,60 @@ function openFunderDetail(funderId) {
   { const _d = document.getElementById("assetDialog"); if (!_d.open) _d.showModal(); }
 }
 
+function renderGateFlow() {
+  const sel = document.getElementById("gateAsset");
+  if (!sel) return;
+  // 维持选中项
+  const prev = sel.value;
+  sel.innerHTML = state.assets.map((a) => `<option value="${a.id}">${a.name}（缺口 ${money(assetRemaining(a))}）</option>`).join("");
+  if (prev && state.assets.some((a) => a.id === prev)) sel.value = prev;
+  const asset = state.assets.find((a) => a.id === sel.value) || state.assets[0];
+  if (!asset) { document.getElementById("gateFlow").innerHTML = ""; return; }
+
+  const rem = assetRemaining(asset) || asset.amount;
+  const exp = daysLeft(asset);
+  const recs = recommendFunders(asset, rem); // 已含资金方 5 条准入（类型/收益/金额/期限/窗口）
+  const liquid = recs.filter((r) => funderLiquidity(r.funder.id) > 0);
+
+  const gates = [
+    { n: "①", name: "资产资质", ok: qualified(asset), sub: "实控人 / 企业 / 店铺", detail: qualOverall(asset) },
+    { n: "②", name: "时间窗口", ok: exp >= 0, sub: "最晚需求日倒计时", detail: exp >= 0 ? `剩 ${exp} 天 · ${asset.deadline || "-"}` : `已过期 · ${asset.deadline || "-"}` },
+    { n: "③", name: "资金方准入", ok: recs.length > 0, sub: "类型/收益/金额/期限/窗口", detail: recs.length ? `${recs.length} 家通过` : "无资金方通过" },
+    { n: "④", name: "资金到账", ok: liquid.length > 0, sub: "法币已到账可用", detail: liquid.length ? `${liquid.length} 家有可用法币` : "暂无可用法币" },
+  ];
+  // 顺序门禁：找到第一道未通过的关；它之前=已通过，它=卡住，它之后=待检（流程未走到）
+  const firstFail = gates.findIndex((g) => !g.ok);
+  const passedCount = firstFail === -1 ? gates.length : firstFail;
+  const done = assetRemaining(asset) <= 0;
+  const ready = firstFail === -1 && !done;
+
+  const nodes = gates.map((g, i) => {
+    let cls, icon, detail;
+    if (firstFail === -1 || i < firstFail) { cls = "ok"; icon = "✓"; detail = g.detail; }
+    else if (i === firstFail) { cls = "no"; icon = "✕"; detail = g.detail; }
+    else { cls = "pending"; icon = "—"; detail = "待前序通过"; }
+    return `
+    <div class="gate-node ${cls}">
+      <div class="gate-icon">${icon}</div>
+      <div class="gate-name">${g.n} ${g.name}</div>
+      <div class="gate-sub">${g.sub}</div>
+      <div class="gate-detail">${detail}</div>
+    </div>`;
+  }).join('<div class="gate-arrow">→</div>');
+
+  const resultCls = done ? "ok" : ready ? "ok" : "no";
+  const resultName = done ? "已配齐" : ready ? "可撮合" : "暂不可撮合";
+  const resultDetail = done ? "缺口已补满" : ready ? "四关全部通过" : `已过 ${passedCount}/4 · 卡在「${gates[firstFail].name}」`;
+  document.getElementById("gateFlow").innerHTML = `
+    ${nodes}
+    <div class="gate-arrow">→</div>
+    <div class="gate-result ${resultCls}">
+      <div class="gate-icon">${done || ready ? "✓" : "⛔"}</div>
+      <div class="gate-name">${resultName}</div>
+      <div class="gate-detail">${resultDetail}</div>
+    </div>`;
+}
+
 function renderMatching() {
   const totalAvailable = state.funds.reduce((sum, fund) => sum + fundAvailable(fund), 0);
   const totalGap = state.assets.reduce((sum, asset) => sum + assetRemaining(asset), 0);
@@ -477,6 +531,7 @@ function renderMatching() {
   document.getElementById("matchCount").textContent = String(state.matches.length);
   document.getElementById("matchCoverage").textContent = `${coverage.toFixed(1)}%`;
 
+  renderGateFlow();
   const tbody = document.getElementById("matchTable");
   if (!state.matches.length) {
     const empty = document.createElement("tr");
@@ -1005,6 +1060,7 @@ document.getElementById("funderGrid").addEventListener("click", (e) => {
 document.getElementById("materialContextBanner").addEventListener("click", (e) => {
   if (e.target.closest("#materialContextClear")) renderMaterialContext(null);
 });
+document.getElementById("gateAsset").addEventListener("change", renderGateFlow);
 document.getElementById("flowFilter").addEventListener("click", (e) => {
   const chip = e.target.closest(".flow-chip");
   if (!chip) return;

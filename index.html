@@ -133,6 +133,15 @@
             <article class="metric"><span>匹配笔数</span><strong id="matchCount">-</strong><small>资金 ↔ 资产</small></article>
             <article class="metric"><span>资产覆盖率</span><strong id="matchCoverage">-</strong><small>已配 / 总本金</small></article>
           </div>
+
+          <section class="panel gate-panel">
+            <div class="panel-head">
+              <h2>撮合进度</h2>
+              <label class="gate-asset">资产 <select id="gateAsset"></select></label>
+            </div>
+            <div class="gate-flow" id="gateFlow"></div>
+          </section>
+
           <div class="panel-head page-tools">
             <h2>匹配记录</h2>
             <button class="primary" id="addMatch">新建匹配</button>
